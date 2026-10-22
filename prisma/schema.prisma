@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  STAFF
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum Sunlight {
+  FULL_SUN
+  PARTIAL_SHADE
+  SHADE
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum CareType {
+  WATERING
+  SUNLIGHT
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         Role      @default(CUSTOMER)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  orders     Order[]
+  userPlants UserPlant[]
+  messages   Message[]   @relation("CustomerMessages")
+  replies    Message[]   @relation("StaffReplies")
+
+  @@map("users")
+}
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  plants Plant[]
+
+  @@map("categories")
+}
+
+model Plant {
+  id                    Int        @id @default(autoincrement())
+  name                  String
+  description           String
+  categoryId            Int        @map("category_id")
+  price                 Decimal    @db.Decimal(10, 2)
+  imageUrl              String?    @map("image_url")
+  difficulty            Difficulty
+  sunlight              Sunlight
+  wateringFrequencyDays Int        @map("watering_frequency_days")
+  season                String?
+  inStock               Boolean    @default(true) @map("in_stock")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orders     Order[]
+  userPlants UserPlant[]
+  messages   Message[]
+
+  @@map("plants")
+}
+
+model Order {
+  id        Int         @id @default(autoincrement())
+  userId    Int         @map("user_id")
+  plantId   Int         @map("plant_id")
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  user      User  @relation(fields: [userId], references: [id])
+  plant     Plant @relation(fields: [plantId], references: [id])
+  userPlant UserPlant?
+
+  @@map("orders")
+}
+
+model UserPlant {
+  id      Int      @id @default(autoincrement())
+  userId  Int      @map("user_id")
+  plantId Int      @map("plant_id")
+  orderId Int      @unique @map("order_id")
+  addedAt DateTime @default(now()) @map("added_at")
+
+  user          User           @relation(fields: [userId], references: [id])
+  plant         Plant          @relation(fields: [plantId], references: [id])
+  order         Order          @relation(fields: [orderId], references: [id])
+  careReminders CareReminder[]
+
+  @@map("user_plants")
+}
+
+model CareReminder {
+  id          Int      @id @default(autoincrement())
+  userPlantId Int      @map("user_plant_id")
+  type        CareType
+  message     String
+  dueDate     DateTime @map("due_date") @db.Date
+  isDone      Boolean  @default(false) @map("is_done")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userPlant UserPlant @relation(fields: [userPlantId], references: [id])
+
+  @@map("care_reminders")
+}
+
+model Message {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  plantId   Int?      @map("plant_id")
+  content   String
+  reply     String?
+  repliedBy Int?      @map("replied_by")
+  repliedAt DateTime? @map("replied_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user  User   @relation("CustomerMessages", fields: [userId], references: [id])
+  plant Plant? @relation(fields: [plantId], references: [id])
+  staff User?  @relation("StaffReplies", fields: [repliedBy], references: [id])
+
+  @@map("messages")
+}
